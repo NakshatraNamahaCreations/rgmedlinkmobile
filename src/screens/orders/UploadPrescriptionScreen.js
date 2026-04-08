@@ -1,0 +1,453 @@
+  import React, { useState, useRef, useCallback } from "react";
+  import {
+    View, Text, StyleSheet, TouchableOpacity, ScrollView,
+    SafeAreaView, ActivityIndicator, Platform, Modal,
+    Animated, Pressable, Dimensions, Alert, StatusBar, Image,
+  } from "react-native";
+  import { Ionicons } from "@expo/vector-icons";
+  import * as ImagePicker from "expo-image-picker";
+  import * as DocumentPicker from "expo-document-picker";
+  import { C } from "../../theme/colors";
+  import { F } from "../../theme/fonts";
+import API, { BASE_URL } from "../../api";
+
+
+  const { width } = Dimensions.get("window");
+  const TOP = Platform.OS === "ios" ? 54 : (StatusBar.currentHeight || 24) + 12;
+
+  const UPLOAD_OPTIONS = [
+    { id: "camera",  icon: "camera",        label: "Take a Photo",        sub: "Click prescription with camera", color: C.brand, bg: C.brandLt },
+    { id: "gallery", icon: "images",        label: "Choose from Gallery", sub: "Pick from saved photos",         color: "#7C3AED", bg: "#F5F3FF" },
+    { id: "pdf",     icon: "document-text", label: "Upload PDF",          sub: "Browse and select a file",       color: "#2563EB", bg: "#EFF6FF" },
+  ];
+
+  const STEPS = [
+    { icon: "cloud-upload", title: "Upload", sub: "Take a photo or upload PDF", color: C.brand },
+    { icon: "search", title: "We Scan", sub: "AI reads your medicines", color: "#7C3AED" },
+    { icon: "cart", title: "Review", sub: "Verify & place your order", color: "#059669" },
+  ];
+
+  export default function UploadPrescriptionScreen({ navigation }) {
+    const [uploading, setUploading] = useState(false);
+    const [preview, setPreview] = useState(null); // { uri, source }
+
+
+    const handleUpload = useCallback(async (id) => {
+      try {
+        let result = null;
+
+        if (id === "camera") {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert("Permission Required", "Camera access is needed to take a photo.");
+            return;
+          }
+          result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.85 });
+        } else if (id === "gallery") {
+          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert("Permission Required", "Gallery access is needed.");
+            return;
+          }
+          result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85 });
+        } else if (id === "pdf") {
+          const docResult = await DocumentPicker.getDocumentAsync({ type: "application/pdf", copyToCacheDirectory: true });
+          if (!docResult.canceled && docResult.assets?.length > 0) {
+            const file = docResult.assets[0];
+
+  const formData = new FormData();
+  formData.append("file", {
+    uri: file.uri,
+    name: "prescription.pdf",
+    type: "application/pdf",
+  });
+  formData.append("userId", "9876543210");
+
+const res = await API.post("/upload/upload-prescription", formData, {
+  headers: {
+    "Content-Type": "multipart/form-data",
+  },
+});
+
+const data = res.data; // ✅ axios response
+
+  if (data.success) {
+    // 🔥 STEP 1: upload response
+    const uploadData = data.prescription;
+
+    // 🔥 STEP 2: SAVE to DB
+const saveRes = await API.post("/prescriptions", {
+  doctor: uploadData.doctor,
+  start: new Date().toISOString().split("T")[0],
+  meds: uploadData.medicines.map(m => ({
+    medicine: m.medicineId,
+    qty: m.qty,
+    freq: m.freq,
+    duration: m.duration
+  })),
+  discount: 0
+});
+
+const savedData = saveRes.data;
+
+    console.log("SAVED DATA:", savedData);
+
+    // 🔥 STEP 3: navigate using SAVED data
+    navigation.navigate("ReviewPrescription", {
+      prescription: savedData.data,
+      prescriptionId: savedData.data._id
+    });
+  }
+            return;
+          }
+          return;
+        }
+
+        if (result && !result.canceled && result.assets?.length > 0) {
+          setPreview({ uri: result.assets[0].uri, source: id });
+        }
+      } catch {
+        Alert.alert("Error", "Something went wrong. Please try again.");
+      }
+    }, [navigation]);
+
+    return (
+      <SafeAreaView style={s.safe}>
+        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
+        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          {/* ── Hero ── */}
+          <View style={s.hero}>
+            <View style={s.heroIconWrap}>
+              <View style={s.heroIcon}>
+                <Ionicons name="document-text" size={32} color={C.brand} />
+              </View>
+              <View style={s.heroPulse} />
+            </View>
+            <Text style={s.heroTitle}>Upload Prescription</Text>
+            <Text style={s.heroSub}>
+              Take a clear photo of your prescription{"\n"}and we'll handle the rest
+            </Text>
+          </View>
+
+          {/* ── Upload options ── */}
+          <View style={s.optionsWrap}>
+            {UPLOAD_OPTIONS.map((opt, i) => (
+              <TouchableOpacity
+                key={opt.id}
+                style={s.optionCard}
+                activeOpacity={0.7}
+                onPress={() => handleUpload(opt.id)}
+                disabled={uploading}
+              >
+                <View style={[s.optionIcon, { backgroundColor: opt.bg }]}>
+                  <Ionicons name={opt.icon} size={22} color={opt.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.optionLabel}>{opt.label}</Text>
+                  <Text style={s.optionSub}>{opt.sub}</Text>
+                </View>
+                <View style={s.optionArrow}>
+                  <Ionicons name="chevron-forward" size={16} color={C.ink4} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* ── How it works ── */}
+          <View style={s.stepsSection}>
+            <Text style={s.stepsTitle}>How it works</Text>
+            <View style={s.stepsRow}>
+              {STEPS.map((step, i) => (
+                <View key={i} style={s.stepItem}>
+                  <View style={[s.stepIcon, { backgroundColor: step.color + "12" }]}>
+                    <Ionicons name={step.icon} size={20} color={step.color} />
+                  </View>
+                  <Text style={s.stepTitle}>{step.title}</Text>
+                  <Text style={s.stepSub}>{step.sub}</Text>
+                  {i < STEPS.length - 1 && (
+                    <View style={s.stepArrow}>
+                      <Ionicons name="arrow-forward" size={12} color={C.ink5} />
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* ── Prescription tips ── */}
+          <View style={s.tipsCard}>
+            <View style={s.tipsHeader}>
+              <Ionicons name="bulb" size={18} color="#D97706" />
+              <Text style={s.tipsTitle}>Tips for best results</Text>
+            </View>
+            {[
+              "Place prescription on a flat surface",
+              "Ensure good lighting, avoid shadows",
+              "Include doctor name & signature",
+              "Medicine names should be clearly visible",
+              "Prescription must be within 12 months",
+            ].map((tip, i) => (
+              <View key={i} style={s.tipRow}>
+                <Ionicons name="checkmark-circle" size={16} color={C.green} />
+                <Text style={s.tipText}>{tip}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* ── Formats ── */}
+          <View style={s.formatsRow}>
+            <Text style={s.formatsLabel}>Supported formats</Text>
+            <View style={s.formatTags}>
+              {["PDF", "JPG", "PNG"].map((f) => (
+                <View key={f} style={s.formatTag}>
+                  <Text style={s.formatTagText}>{f}</Text>
+                </View>
+              ))}
+              <Text style={s.formatSize}>Max 25 MB</Text>
+            </View>
+          </View>
+        </ScrollView>
+        {/* ── Preview Modal ── */}
+        <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
+          <View style={s.prevBg}>
+            <View style={s.prevCard}>
+              <View style={s.prevHeader}>
+                <Text style={s.prevTitle}>Preview Prescription</Text>
+                <TouchableOpacity onPress={() => setPreview(null)}>
+                  <Ionicons name="close" size={22} color={C.ink3} />
+                </TouchableOpacity>
+              </View>
+
+              {preview?.uri && (
+                <View style={s.prevImgWrap}>
+                  <Image source={{ uri: preview.uri }} style={s.prevImg} resizeMode="contain" />
+                  <View style={s.prevBadge}>
+                    <Ionicons name="checkmark-circle" size={14} color={C.green} />
+                    <Text style={s.prevBadgeText}>Photo captured</Text>
+                  </View>
+                </View>
+              )}
+
+              <Text style={s.prevSub}>Make sure the prescription is clear, well-lit, and all medicine names are visible</Text>
+
+              <View style={s.prevActions}>
+                <TouchableOpacity
+                  style={s.prevRetakeBtn}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setPreview(null);
+                    handleUpload(preview?.source || "camera");
+                  }}
+                >
+                  <Ionicons name="camera-outline" size={16} color={C.brand} />
+                  <Text style={s.prevRetakeText}>Retake</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={s.prevConfirmBtn}
+                  activeOpacity={0.85}
+                  onPress={async () => {
+    try {
+      const p = preview;
+      setPreview(null);
+      setUploading(true);
+
+      const formData = new FormData();
+
+      formData.append("file", {
+        uri: p.uri,
+        name: "prescription.jpg",
+        type: "image/jpeg",
+      });
+
+      formData.append("userId", "9876543210");
+
+      const res = await API.post("/upload/upload-prescription", formData, {
+  headers: {
+    "Content-Type": "multipart/form-data",
+  },
+});
+
+const data = res.data;
+
+      // ✅ ADD HERE
+      console.log("FULL RESPONSE:", data);
+      console.log("PRESCRIPTION:", data.prescription);
+
+  if (data.success) {
+    const uploadData = data.prescription;
+
+ const saveRes = await API.post("/prescriptions", {
+  doctor: uploadData.doctor,
+  start: new Date().toISOString().split("T")[0],
+  meds: uploadData.medicines.map(m => ({
+    medicine: m.medicineId,
+    qty: m.qty,
+    freq: m.freq,
+    duration: m.duration
+  })),
+  discount: 0
+});
+
+const savedData = saveRes.data;
+
+    navigation.navigate("ReviewPrescription", {
+      prescription: savedData.data,
+      prescriptionId: savedData.data._id
+    });
+  } else {
+  Alert.alert(
+    "Stock Issue",
+    data.message || "Some medicines are out of stock"
+  );
+  }
+
+    } catch (err) {
+      console.log(err);
+      if (!data.success) {
+    Alert.alert("Stock Issue", data.message || "Some medicines are unavailable");
+    return;
+  }
+    } finally {
+      setUploading(false);
+    }
+  }}
+                >
+                  <Text style={s.prevConfirmText}>Confirm & Proceed</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    );
+  }
+
+  const s = StyleSheet.create({
+    safe: { flex: 1, backgroundColor: "#FAFAFA" },
+
+    /* Preview modal */
+    prevBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 20 },
+    prevCard: { backgroundColor: "#fff", borderRadius: 24, padding: 20, maxHeight: "85%" },
+    prevHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+    prevTitle: { fontSize: 18, fontFamily: F.bold, color: C.ink },
+    prevImgWrap: { borderRadius: 16, overflow: "hidden", backgroundColor: "#F8FAFC", marginBottom: 14 },
+    prevImg: { width: "100%", height: 340, backgroundColor: "#F8FAFC" },
+    prevBadge: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      position: "absolute", bottom: 12, left: 12,
+      backgroundColor: "#fff", borderRadius: 10,
+      paddingHorizontal: 10, paddingVertical: 6,
+      shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+    },
+    prevBadgeText: { fontSize: 12, fontFamily: F.semiBold, color: C.green },
+    prevSub: { fontSize: 13, fontFamily: F.regular, color: C.ink4, textAlign: "center", lineHeight: 19, marginBottom: 18 },
+    prevActions: { flexDirection: "row", gap: 10 },
+    prevRetakeBtn: {
+      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+      borderWidth: 1.5, borderColor: C.brand + "30", borderRadius: 14,
+      paddingVertical: 14, backgroundColor: C.brandLt,
+    },
+    prevRetakeText: { fontSize: 14, fontFamily: F.bold, color: C.brand },
+    prevConfirmBtn: {
+      flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+      backgroundColor: C.brand, borderRadius: 14, paddingVertical: 14,
+      shadowColor: C.brand, shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
+    },
+    prevConfirmText: { fontSize: 14, fontFamily: F.bold, color: "#fff" },
+    scroll: { paddingBottom: 40 },
+
+    /* Hero */
+    hero: { alignItems: "center", paddingTop: 30, paddingBottom: 28, backgroundColor: "#fff" },
+    heroIconWrap: { position: "relative", marginBottom: 16 },
+    heroIcon: {
+      width: 72, height: 72, borderRadius: 22,
+      backgroundColor: C.brandLt,
+      justifyContent: "center", alignItems: "center",
+      shadowColor: C.brand, shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15, shadowRadius: 10, elevation: 4,
+    },
+    heroPulse: {
+      position: "absolute", width: 88, height: 88, borderRadius: 26,
+      borderWidth: 2, borderColor: C.brand + "15",
+      top: -8, left: -8,
+    },
+    heroTitle: { fontSize: 22, fontFamily: F.extraBold, color: C.ink },
+    heroSub: { fontSize: 14, fontFamily: F.regular, color: C.ink4, textAlign: "center", marginTop: 6, lineHeight: 21 },
+
+    /* Options */
+    optionsWrap: { paddingHorizontal: 16, paddingTop: 20, gap: 10 },
+    optionCard: {
+      flexDirection: "row", alignItems: "center", gap: 14,
+      backgroundColor: "#fff", borderRadius: 16, padding: 16,
+      borderWidth: 1, borderColor: "#F1F5F9",
+      shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
+    },
+    optionIcon: {
+      width: 48, height: 48, borderRadius: 14,
+      justifyContent: "center", alignItems: "center",
+    },
+    optionLabel: { fontSize: 15, fontFamily: F.bold, color: C.ink },
+    optionSub: { fontSize: 12, fontFamily: F.regular, color: C.ink4, marginTop: 2 },
+    optionArrow: {
+      width: 30, height: 30, borderRadius: 10,
+      backgroundColor: "#F8FAFC",
+      justifyContent: "center", alignItems: "center",
+    },
+
+    /* Steps */
+    stepsSection: { paddingHorizontal: 16, marginTop: 28 },
+    stepsTitle: { fontSize: 16, fontFamily: F.bold, color: C.ink, marginBottom: 14 },
+    stepsRow: { flexDirection: "row", gap: 8 },
+    stepItem: {
+      flex: 1, alignItems: "center",
+      backgroundColor: "#fff", borderRadius: 16, padding: 16,
+      borderWidth: 1, borderColor: "#F1F5F9", position: "relative",
+    },
+    stepIcon: {
+      width: 44, height: 44, borderRadius: 14,
+      justifyContent: "center", alignItems: "center", marginBottom: 10,
+    },
+    stepTitle: { fontSize: 13, fontFamily: F.bold, color: C.ink },
+    stepSub: { fontSize: 10, fontFamily: F.regular, color: C.ink4, textAlign: "center", marginTop: 3, lineHeight: 14 },
+    stepArrow: {
+      position: "absolute", right: -14, top: "50%", marginTop: -8,
+      width: 20, height: 20, borderRadius: 10,
+      backgroundColor: "#fff", zIndex: 2,
+      justifyContent: "center", alignItems: "center",
+      borderWidth: 1, borderColor: "#F1F5F9",
+    },
+
+    /* Tips */
+    tipsCard: {
+      marginHorizontal: 16, marginTop: 24,
+      backgroundColor: "#fff", borderRadius: 16, padding: 18,
+      borderWidth: 1, borderColor: "#F1F5F9",
+    },
+    tipsHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
+    tipsTitle: { fontSize: 14, fontFamily: F.bold, color: C.ink },
+    tipRow: {
+      flexDirection: "row", alignItems: "center", gap: 10,
+      paddingVertical: 7,
+    },
+    tipText: { fontSize: 13, fontFamily: F.regular, color: C.ink2, flex: 1 },
+
+    /* Formats */
+    formatsRow: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      marginHorizontal: 16, marginTop: 20, paddingHorizontal: 4,
+    },
+    formatsLabel: { fontSize: 12, fontFamily: F.semiBold, color: C.ink4 },
+    formatTags: { flexDirection: "row", alignItems: "center", gap: 6 },
+    formatTag: {
+      backgroundColor: C.brandLt, borderRadius: 6,
+      paddingHorizontal: 8, paddingVertical: 3,
+    },
+    formatTagText: { fontSize: 10, fontFamily: F.bold, color: C.brand },
+    formatSize: { fontSize: 10, fontFamily: F.regular, color: C.ink4 },
+  });

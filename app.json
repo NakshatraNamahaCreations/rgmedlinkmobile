@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "RG Medlink",
+    "slug": "rg-medlink",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,14 +16,38 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.rgmedlink.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#2D0810"
       },
       "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow RG Medlink to use your location to find nearby pharmacies and deliver to your address.",
+          "locationWhenInUsePermission": "Allow RG Medlink to use your location to find nearby pharmacies and deliver to your address."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow RG Medlink to access your camera to photograph prescriptions.",
+          "photosPermission": "Allow RG Medlink to access your photos to upload prescriptions."
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
+    ]
   }
 }
