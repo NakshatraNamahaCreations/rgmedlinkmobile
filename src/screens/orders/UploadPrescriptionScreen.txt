@@ -91,11 +91,14 @@ import API, { BASE_URL } from "../../api";
     console.log("SAVE RESPONSE:", saveRes.data);
 
     // ✅ NAVIGATE
-    navigation.navigate("ReviewPrescription", {
-      prescription: uploadData,
-      prescriptionId: saveRes.data.prescriptionId,
-       // explicitly set
-    });
+      navigation.navigate("ReviewPrescription", {
+        prescription: uploadData,
+        prescriptionId: saveRes.data.prescriptionId,
+
+        // ✅ ADD DEFAULT OR EXISTING
+        patientId: null,
+        addressId: null
+      });
 
   } catch (err) {
     console.log("IMAGE UPLOAD ERROR:", err?.response?.data || err.message);

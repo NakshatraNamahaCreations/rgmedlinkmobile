@@ -488,7 +488,13 @@ export default function HomeScreen({ navigation }) {
               { icon: "medkit", label: "Order\nMedicine", color: "#fff", nav: "HomeStack", screen: "UploadPrescription" },
               { icon: "document-text", label: "Upload\nRx", color: "#fff", nav: "HomeStack", screen: "UploadPrescription" },
               { icon: "cube", label: "Track\nOrder", color: "#fff", nav: "OrdersTab" },
-              { icon: "chatbubble-ellipses", label: "Raise\nTicket", color: "#fff", nav: "ProfileTab", screen: "CreateTicket" },
+              {
+  icon: "chatbubbles",
+  label: "Chat\nSupport",
+  color: "#fff",
+  nav: "ProfileTab",
+  screen: "ChatScreen"
+}
             ].map((srv, i) => (
               <ScalePress key={i} onPress={() => requireAuth(() => {
               if (srv.nav === "HomeStack") {
@@ -518,7 +524,10 @@ export default function HomeScreen({ navigation }) {
 
       {/* ── ASSISTANCE STRIP ── */}
       <A i={3}>
-        <ScalePress onPress={() => requireAuth(() => { if (!tabNav) return; tabNav.navigate("ProfileTab", { screen: "CreateTicket" }); })} scaleTo={0.97}>
+   <ScalePress onPress={() => requireAuth(() => { 
+  if (!tabNav) return; 
+  tabNav.navigate("ProfileTab", { screen: "ChatScreen" }); 
+})}>
           <View style={s.assistStrip}>
             <Ionicons name="headset-outline" size={20} color={C.brand} />
             <Text style={s.assistText}>Need order assistance?</Text>

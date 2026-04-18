@@ -135,6 +135,8 @@
     const mode = route.params?.mode || "all";
     const isReview = mode === "review";
     const rx = route.params?.prescription || {};
+  
+
 
     const calculateQty = (freqLabel, duration) => {
     if (!freqLabel || !duration) return 0;
@@ -145,6 +147,7 @@
 
     return perDay * duration;
   };
+
 
 
   const handleUpdateMedicine = (updatedMedicine) => {
@@ -200,41 +203,53 @@
     });
   };
     // Build medicines from prescription data
-  const buildMeds = () => {
-    const medsArray = rx.medicines || rx.meds || [];
+const buildMeds = () => {
+  const medsArray = rx.medicines || rx.meds || [];
 
-    if (!medsArray.length) return [];
+  if (!medsArray.length) return [];
 
-return medsArray.map((m, i) => {
-  const basePrice = m.subtotal || m.price || 0;
-  const baseQty = m.qty || 1;
+  return medsArray
+    .map((m, i) => {
+      const basePrice = m.subtotal || m.price || 0;
+      const baseQty = m.qty || 1;
 
-  return {
-    // ✅ FIXED
-    id: m.medicine?._id?.toString() || m.medicine?.toString() || `temp-${i}`,
-    medicineId: m.medicine?._id?.toString() || m.medicine?.toString(),
+      // ✅ GET REAL MEDICINE ID ONLY
+      const medicineId =
+        m.medicineId ||                 // ✅ from upload API (MOST IMPORTANT)
+        m.medicine?._id?.toString() ||  // ✅ populated object
+        m.medicine?.toString();         // ✅ fallback
 
-    name: m.name || m.medicine?.name,
+      return {
+        // ⚠️ UI ID (safe fallback allowed here ONLY)
+        id: medicineId || `temp-${i}`,
 
-    freqLabel:
-      m.freqLabel ||
-      `${m.freq?.m || 0}-${m.freq?.a || 0}-${m.freq?.n || 0}`,
+        // ✅ REAL ID (NO FALLBACK HERE)
+        medicineId: medicineId,
 
-    duration: m.duration || 0,
+        name: m.name || m.medicine?.name || "Unknown Medicine",
 
-    qty: baseQty,
+        freqLabel:
+          m.freqLabel ||
+          `${m.freq?.m || 0}-${m.freq?.a || 0}-${m.freq?.n || 0}`,
 
-    unitPrice: baseQty > 0 ? basePrice / baseQty : 0,
+        duration: m.duration || 0,
 
-    unit: m.unit || m.medicine?.unit || "tablet",
+        qty: baseQty,
 
-    price: basePrice,
-    originalPrice: basePrice,
+        unitPrice: baseQty > 0 ? basePrice / baseQty : 0,
 
-    inStock: m.inStock !== false,
-  };
-});
-  };
+        unit: m.unit || m.medicine?.unit || "tablet",
+
+        price: basePrice,
+        originalPrice: basePrice,
+
+        inStock: m.inStock !== false,
+      };
+    })
+
+    // 🚨 CRITICAL: REMOVE INVALID MEDICINES
+    .filter((m) => m.medicineId);
+};
 
   const initialMeds = buildMeds();
 
@@ -404,24 +419,50 @@ return medsArray.map((m, i) => {
           {/* Patient */}
           <View style={[s.fInfoRow, { marginTop: 8 }]}>
             <View style={s.fBadge}><Text style={s.fBadgeTxt}>Patient</Text></View>
-            <Text style={s.fInfoVal} numberOfLines={1}>Add patient details</Text>
-            <TouchableOpacity activeOpacity={0.7} onPress={() => navigation.navigate("PatientDetails")}>
-              <Text style={s.fChange}>Change</Text>
-            </TouchableOpacity>
+          <Text style={s.fInfoVal}>
+          "Select in next step"
+        </Text>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() =>
+            navigation.navigate("PatientDetails", {
+               ...route.params,
+              from: "review",
+               // ✅ VERY IMPORTANT
+            })
+          }
+        >
+          <Text style={s.fChange}>Change</Text>
+        </TouchableOpacity>
           </View>
 
           {/* Pay + Place Order */}
           <View style={s.fPayRow}>
-            <TouchableOpacity style={s.fPayMethod} activeOpacity={0.75} onPress={() => navigation.navigate("DeliveryDetails", {
-              total: toPay,
-              items: selectedMeds.length,
-              prescriptionId: route.params?.prescriptionId,
-              prescription: rx,
-               medicines: selectedMeds.map(m => ({
-  ...m,
-  _id: m.medicineId || m.id
-}))
-            })}>
+         <TouchableOpacity
+          style={s.fPayMethod}
+          activeOpacity={0.75}
+          onPress={() =>
+          navigation.navigate("DeliveryDetails", {
+            total: toPay,
+            items: selectedMeds.length,
+            prescriptionId: rx._id, 
+            prescription: rx,
+
+            // ✅ ADD THESE
+          
+
+            medicines: selectedMeds.map(m => ({
+              medicineId: m.medicineId,
+              name: m.name,
+              qty: m.qty,
+              price: m.price,
+              unit: m.unit,
+              duration: m.duration,
+              freqLabel: m.freqLabel
+            }))
+          })
+          }
+        >
               <View style={s.fPayIcon}>
                 <Ionicons name="wallet-outline" size={16} color={C.ink2} />
               </View>
@@ -433,16 +474,40 @@ return medsArray.map((m, i) => {
                 <Text style={s.fPayValue}>UPI</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={s.placeBtn} activeOpacity={0.85} onPress={() => navigation.navigate("DeliveryDetails", {
-              total: toPay,
-              items: selectedMeds.length,
-              prescriptionId: route.params?.prescriptionId, 
-              prescription: rx,
-               medicines: selectedMeds.map(m => ({
-  ...m,
-  _id: m.medicineId || m.id
-}))
-            })}>
+     <TouchableOpacity
+  style={s.placeBtn}
+  activeOpacity={0.75}
+  onPress={() => {
+    // ✅ VALIDATION (VERY IMPORTANT)
+
+
+    if (!selectedMeds?.length) {
+      Alert.alert("No Medicines", "No medicines selected");
+      return;
+    }
+
+    // ✅ NAVIGATION
+    navigation.navigate("DeliveryDetails", {
+      total: toPay,
+      items: selectedMeds.length,
+      prescriptionId: rx._id, 
+      prescription: rx,
+
+
+
+      // ✅ MEDICINES FORMAT
+      medicines: selectedMeds.map((m) => ({
+        medicineId: m.medicineId,
+        name: m.name,
+        qty: m.qty,
+        price: m.price,
+        unit: m.unit,
+        duration: m.duration,
+        freqLabel: m.freqLabel,
+      })),
+    });
+  }}
+>
               <Text style={s.placeBtnTxt}>Place Order</Text>
             </TouchableOpacity>
           </View>

@@ -14,20 +14,52 @@ const TOP = Platform.OS === "ios" ? 54 : (StatusBar.currentHeight || 24) + 12;
 
 const QUICK_ACTIONS = [
   { icon: "cube", label: "Orders", color: C.brand, bg: C.brandLt, screen: "OrdersTab", isTab: true },
+  { icon: "people", label: "Patients", color: "#8B5CF6", bg: "#F3E8FF", screen: "PatientList" },
   { icon: "location", label: "Addresses", color: "#10B981", bg: "#ECFDF5", screen: "SavedAddresses" },
   { icon: "document-text", label: "Rx", color: "#F59E0B", bg: "#FFFBEB", screen: "PrescriptionHistory" },
-  { icon: "headset", label: "Support", color: "#0EA5E9", bg: "#E0F2FE", screen: "Support" },
+ {
+  icon: "chatbubble-ellipses",
+  label: "Tickets",
+  color: "#0EA5E9",
+  bg: "#E0F2FE",
+  screen: "Tickets"
+}
 ];
 
 const MENU_ITEMS = [
   { icon: "cube-outline", label: "My Orders", sub: "Track, manage & reorder", screen: "OrdersTab", isTab: true, badge: null },
+  {
+  icon: "people-outline",
+  label: "My Patients",
+  sub: "Manage patient profiles",
+  screen: "PatientList"
+},
+  {
+    icon: "chatbubble-ellipses-outline",
+    label: "My Tickets",
+    sub: "View & track your support tickets",
+    screen: "Tickets"
+  },
   { icon: "location-outline", label: "Saved Addresses", sub: "Manage delivery locations", screen: "SavedAddresses" },
   { icon: "document-text-outline", label: "My Prescriptions", sub: "View prescription history", screen: "PrescriptionHistory" },
   { icon: "card-outline", label: "Payment Methods", sub: "UPI, cards & wallets", screen: null },
 ];
 
 const SUPPORT_ITEMS = [
-  { icon: "chatbubble-ellipses-outline", label: "Help & Support", sub: "Chat with us or raise a ticket", screen: "Support" },
+  {
+    icon: "ticket-outline",
+    label: "Raise Ticket",
+    sub: "Create a new support request",
+    screen: "CreateTicket"
+  },
+
+  {
+    icon: "chatbubble-ellipses-outline",
+    label: "My Tickets",
+    sub: "View your conversations",
+    screen: "Tickets"
+  },
+
   { icon: "star-outline", label: "Rate Us", sub: "Love the app? Rate us 5 stars", screen: null },
   { icon: "share-social-outline", label: "Share App", sub: "Share RG Medlink with friends", screen: null },
   { icon: "shield-checkmark-outline", label: "Privacy Policy", sub: "How we protect your data", screen: null },

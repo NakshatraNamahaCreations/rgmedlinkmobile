@@ -37,9 +37,26 @@ export default function CreateTicketScreen({ navigation }) {
         priority,
         orderId: orderId.trim() || undefined,
       });
-      Alert.alert("Success", "Your ticket has been submitted. Our team will respond shortly.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+     const res = await API.post("/tickets", {
+  userId: user?._id || user?.phone,
+  customerName: user?.name || "Customer",
+  customerPhone: user?.phone,
+  customerEmail: "",
+  subject: subject.trim(),
+  description: description.trim(),
+  category,
+  priority,
+  orderId: orderId.trim() || undefined,
+});
+
+const ticket = res.data.data;
+
+// Navigate based on messages
+if (!ticket.messages || ticket.messages.length === 0) {
+  navigation.replace("TicketSuccess", { ticket });
+} else {
+  navigation.replace("TicketDetail", { ticket });
+}
     } catch (err) {
       Alert.alert("Error", err.response?.data?.message || "Failed to create ticket");
     } finally {

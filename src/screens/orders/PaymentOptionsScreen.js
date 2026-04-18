@@ -3,11 +3,13 @@ import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, Image, StatusBar,
   ScrollView, SafeAreaView, Platform, ActivityIndicator, Alert,
 } from "react-native";
+import { createRazorpayOrder } from "../../api/services";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "../../theme/colors";
 import { F } from "../../theme/fonts";
-import { createOrder, markPaymentPaid } from "../../api/services";
+import { createOrder } from "../../api/services";
 import { useAuth } from "../../context/AuthContext";
+import { RAZORPAY_KEY_ID } from "../../config/keys";
 
 /* ── Local logo assets ────────────────────────────── */
 const LOCAL_LOGOS = {
@@ -90,83 +92,129 @@ export default function PaymentOptionsScreen({ navigation, route }) {
     return "Pay";
   };
 
-  const handlePay = async () => {
-    if (selected === "newcard") {
-      Alert.alert("Card payments coming soon", "We are working on adding card payment support. Please use UPI or Net Banking for now.");
-      return;
+const handlePay = async () => {
+  // 🚫 Block unsupported method
+  if (selected === "newcard") {
+    Alert.alert(
+      "Card payments coming soon",
+      "Please use UPI or Net Banking for now."
+    );
+    return;
+  }
+
+  // 🚫 Validate UPI
+  if (selected === "newupi" && (!upiId.trim() || !upiId.includes("@"))) {
+    setUpiError("Enter a valid UPI ID (e.g. name@upi)");
+    return;
+  }
+
+  // 🚫 Prevent duplicate clicks
+  if (orderCreated.current) return;
+
+  // 🚫 Validate required data
+  if (!patientId || !addressId) {
+    Alert.alert(
+      "Missing Details",
+      "Please add patient details and delivery address before placing the order."
+    );
+    return;
+  }
+
+  orderCreated.current = true;
+  setPaying(true);
+
+  const methodName = getMethodName();
+
+  try {
+    // ✅ STEP 1: Format medicines
+    const formattedMeds = medicines.map((m) => ({
+      medicineId: m.medicineId,
+      qty: m.qty,
+      duration: m.duration,
+      freq: {
+        m: Number(m.freqLabel?.split("-")[0] || 0),
+        a: Number(m.freqLabel?.split("-")[1] || 0),
+        n: Number(m.freqLabel?.split("-")[2] || 0),
+      },
+    }));
+
+    if (!formattedMeds.length) {
+      throw new Error("No medicines found");
     }
-    if (selected === "newupi" && (!upiId.trim() || !upiId.includes("@"))) {
-      setUpiError("Enter a valid UPI ID (e.g. name@upi)");
-      return;
-    }
-    if (orderCreated.current) return;
-    if (!patientId || !addressId) {
-      Alert.alert("Missing Details", "Please add patient details and delivery address before placing the order.");
-      return;
-    }
-    orderCreated.current = true;
-    setPaying(true);
-    const methodName = getMethodName();
 
-    try {
-
-      
-// ✅ DEFINE FIRST
-const parseFreq = (label) => {
-  if (!label) return { m: 0, a: 0, n: 0 };
-
-  const [m, a, n] = label.split("-").map(Number);
-
-  return { m, a, n };
-};
-
-// ✅ THEN USE
-const formattedMeds = medicines.map(m => ({
-  medicineId: m.medicineId,
-  name: m.name,
-  qty: m.qty,
-  price: m.price,
-  unit: m.unit,
-
-  duration: m.duration,
-  freq: parseFreq(m.freqLabel),
-}));
-
-if (!formattedMeds.length) {
-  Alert.alert("Error", "No medicines found");
-  setPaying(false);
-  orderCreated.current = false;
-  return;
-}
-
-const order = await createOrder({
+    // ✅ STEP 2: Create Order payload
+const payload = {
+  userId: user?.phone,
   patientId,
   addressId,
-  prescriptionId,
+
+  // ✅ ONLY send valid ObjectId
+  prescriptionId:
+    typeof prescriptionId === "string" &&
+    prescriptionId.length === 24
+      ? prescriptionId
+      : null,
+
   items: formattedMeds,
-  totalAmount: total || 0,
-});
+  totalAmount: total,
+};
 
-const orderData = order.order || order;
+    console.log("📦 PAYLOAD:", payload);
 
-await markPaymentPaid(orderData._id);
+    // ✅ STEP 3: Create Order
+    const orderRes = await createOrder(payload);
 
-navigation.navigate("OrderSuccess", {
-  total,
-  method: methodName,
-  orderId: orderData.orderId,
-  orderDbId: orderData._id,
-});
-    } catch (error) {
-      setPaying(false);
-      orderCreated.current = false;
-      Alert.alert(
-        "Payment Failed",
-        error?.response?.data?.message || error?.message || "Something went wrong. Please try again.",
-        [{ text: "Retry", style: "default" }]
-      );
+    console.log("✅ ORDER RESPONSE:", orderRes);
+
+    // ✅ Extract order (FINAL CORRECT)
+   const orderData =
+  orderRes?.order ||
+  orderRes?.data?.order ||
+  orderRes?.data ||
+  orderRes;
+
+    if (!orderData || !orderData._id) {
+      console.log("❌ INVALID ORDER RESPONSE:", orderRes);
+      throw new Error("Order creation failed");
     }
-  };
+
+    // ✅ STEP 4: Create Razorpay Order
+    const razorpayRes = await createRazorpayOrder(orderData._id);
+
+    console.log("💳 RAZORPAY RESPONSE:", razorpayRes);
+
+    // ✅ Extract Razorpay order
+    const razorpayOrder = razorpayRes?.razorpayOrder;
+
+    if (!razorpayOrder || !razorpayOrder.id) {
+      console.log("❌ INVALID RAZORPAY RESPONSE:", razorpayRes);
+      throw new Error("Failed to create Razorpay order");
+    }
+
+    // ✅ STEP 5: Navigate to WebView
+    navigation.navigate("RazorpayWebView", {
+      razorpayOrder,
+      orderData,
+      total,
+      methodName,
+    });
+
+  } catch (error) {
+    console.log("❌ PAYMENT ERROR:", error);
+    console.log("❌ API ERROR:", error?.response?.data);
+
+    setPaying(false);
+    orderCreated.current = false;
+
+    Alert.alert(
+      "Payment Failed",
+      error?.response?.data?.message ||
+        error?.message ||
+        "Something went wrong. Please try again.",
+      [{ text: "Retry" }]
+    );
+  }
+};
 
   const handleAddUpi = () => {
     setShowUpiInput(true);

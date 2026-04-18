@@ -18,7 +18,7 @@ const TYPE_ICONS = {
   Other: "location",
 };
 
-export default function SavedAddressesScreen({ navigation }) {
+export default function SavedAddressesScreen({ navigation, route }) {
   const { user } = useAuth();
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,31 +112,54 @@ export default function SavedAddressesScreen({ navigation }) {
             <>
               <Text style={s.sectionLabel}>{addresses.length} saved address{addresses.length > 1 ? "es" : ""}</Text>
 
-              {addresses.map((addr) => (
-                <View key={addr._id} style={[s.addrCard, addr.isDefault && s.addrCardDefault]}>
-                  {addr.isDefault && (
-                    <View style={s.defaultBadge}>
-                      <Ionicons name="checkmark-circle" size={12} color={C.green} />
-                      <Text style={s.defaultText}>Default</Text>
-                    </View>
-                  )}
+            {addresses.map((addr) => (
+            <TouchableOpacity
+              key={addr._id}
+              activeOpacity={0.85}
+              onPress={() => {
+                navigation.navigate("ReviewPrescription", {
+                  ...route.params,              // ✅ VERY IMPORTANT (keeps medicines, prescription, etc.)
+                  addressId: addr._id           // ✅ SEND selected address
+                });
+              }}
+            >
+              <View style={[s.addrCard, addr.isDefault && s.addrCardDefault]}>
+                
+                {addr.isDefault && (
+                  <View style={s.defaultBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color={C.green} />
+                    <Text style={s.defaultText}>Default</Text>
+                  </View>
+                )}
 
-                  <View style={s.addrTop}>
-                    <View style={s.addrIconWrap}>
-                      <Ionicons name={TYPE_ICONS[addr.type] || "location"} size={18} color={C.brand} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.addrType}>{addr.type || "Address"}</Text>
-                      <Text style={s.addrFull} numberOfLines={2}>{addr.fullAddress || [addr.house, addr.street, addr.city].filter(Boolean).join(", ")}</Text>
-                      {addr.landmark ? <Text style={s.addrLandmark}>Near {addr.landmark}</Text> : null}
-                    </View>
+                <View style={s.addrTop}>
+                  <View style={s.addrIconWrap}>
+                    <Ionicons name={TYPE_ICONS[addr.type] || "location"} size={18} color={C.brand} />
                   </View>
 
-                  <View style={s.addrActions}>
-                    <TouchableOpacity
-                      style={s.actionBtn}
-                      activeOpacity={0.7}
-                      onPress={() => navigation.navigate("AddressDetails", {
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.addrType}>{addr.type || "Address"}</Text>
+
+                    <Text style={s.addrFull} numberOfLines={2}>
+                      {addr.fullAddress || [addr.house, addr.street, addr.city].filter(Boolean).join(", ")}
+                    </Text>
+
+                    {addr.landmark ? (
+                      <Text style={s.addrLandmark}>Near {addr.landmark}</Text>
+                    ) : null}
+                  </View>
+                </View>
+
+                {/* ACTION BUTTONS (EDIT / DELETE) */}
+                <View style={s.addrActions}>
+                  
+                  {/* 🔧 EDIT */}
+                  <TouchableOpacity
+                    style={s.actionBtn}
+                    activeOpacity={0.7}
+                    onPress={(e) => {
+                      e.stopPropagation(); // ✅ prevent selecting address when editing
+                      navigation.navigate("AddressDetails", {
                         addressId: addr._id,
                         address: addr.house,
                         area: addr.street,
@@ -145,23 +168,30 @@ export default function SavedAddressesScreen({ navigation }) {
                         pincode: addr.pincode,
                         lat: addr.latitude,
                         lng: addr.longitude,
-                      })}
-                    >
-                      <Ionicons name="create-outline" size={14} color={C.brand} />
-                      <Text style={s.actionText}>Edit</Text>
-                    </TouchableOpacity>
+                      });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={14} color={C.brand} />
+                    <Text style={s.actionText}>Edit</Text>
+                  </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[s.actionBtn, s.deleteBtn]}
-                      activeOpacity={0.7}
-                      onPress={() => handleDelete(addr._id)}
-                    >
-                      <Ionicons name="trash-outline" size={14} color={C.red} />
-                      <Text style={[s.actionText, { color: C.red }]}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {/* 🗑 DELETE */}
+                  <TouchableOpacity
+                    style={[s.actionBtn, s.deleteBtn]}
+                    activeOpacity={0.7}
+                    onPress={(e) => {
+                      e.stopPropagation(); // ✅ prevent selecting address when deleting
+                      handleDelete(addr._id);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={14} color={C.red} />
+                    <Text style={[s.actionText, { color: C.red }]}>Delete</Text>
+                  </TouchableOpacity>
+
                 </View>
-              ))}
+              </View>
+            </TouchableOpacity>
+          ))}
             </>
           )}
         </ScrollView>

@@ -4,10 +4,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // ============================
 // ENV CONFIG
 // ============================
-const IS_PROD = true; // ✅ switch this when building for production
+const IS_PROD = false; // ✅ switch this when building for production
 
 const BASE_URL = IS_PROD
-  ? "https://rgmedlink-backend001.onrender.com/api" // ✅ Render backend
+  ? "https://rgmedlink-backend001.onrender.com/api"
   : "http://192.168.29.47:5000/api"; // ✅ Local backend
 
 // ============================
